@@ -4,18 +4,25 @@ import os
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import sys 
-
-
-General_model_folder_path = "/mnt/guanabana/raid/hdd1/eshui011/Thesis_Eshuis_final/Transformer model/Model_analysis/General_model_files"
-sys.path.append(General_model_folder_path)
 
 from Transformer_model_variable import CropRotationTransformer
 from Crop_encoder_list import crop_type_individual_encoding
 
-# This analyis uses the KL divergence to compare probablity distributions of the following 5 distributions
-#transformer_model = "/mnt/guanabana/raid/hdd1/eshui011/Thesis_Eshuis_final/Transformer model/Model_analysis/General_model_files/Final_crop_rotation_predicter_R267.pth"
-transformer_model = torch.load("crop_rotation_model.pth")
+# This script returns a pdf containing the distribution of predicted probabilities from the crop rotation transformer
+# Output file name:
+save_file = 'model_prediction.pdf'
+# It requires the user to enter a comma seperated sequence, with a length of minimum 1 to maximum 7 crops
+
+# Enter the sequence below, an example sequence of 4 crops is given (WinterWheat>Maize>Potatoes>Maize)
+sequence_test = [22, 6, 11, 6]
+# The crops are represented by numbers, the encoding is listed in the Crop_encoder_list.py
+
+# Ensuring the correct folder is selected
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+# Ensure you're loading the model from the correct file path
+transformer_model_path = "crop_rotation_model.pth"
 
 # Reverse the dictionary to map indexes to crop names
 index_to_crop = {}
@@ -32,7 +39,7 @@ def map_indexes_to_crops(indexes):
         crop_names.append(crops)
     return crop_names
 
-def compute_TD(TD_input_sequence, transformer_model):
+def compute_TD(TD_input_sequence, transformer_model_path):
     # Load the model
     device = torch.device('cpu')
     model = CropRotationTransformer(
@@ -45,8 +52,8 @@ def compute_TD(TD_input_sequence, transformer_model):
         device=device                       # Device (CPU/GPU)
     ).to(device)
 
-    saved_model = transformer_model
-    model.load_state_dict(torch.load(saved_model, map_location='cpu'))
+    # Load model's state dict
+    model.load_state_dict(torch.load(transformer_model_path, map_location='cpu'))
     model.eval().to(device)
         
     main_sequence = torch.tensor(TD_input_sequence).to(device)  # Main crop sequence
@@ -63,17 +70,17 @@ def compute_TD(TD_input_sequence, transformer_model):
         Td = F.softmax(main_crop_output, dim=1).cpu().numpy().flatten()
     return Td
 
-def Main(sequence, transformer_model):
+def Main(sequence, transformer_model_path):
     
-    #Preprocessing for TD
+    # Preprocessing for TD
     TD_input_sequence = sequence
-    Td = compute_TD(TD_input_sequence, transformer_model)
+    Td = compute_TD(TD_input_sequence, transformer_model_path)
 
     return Td
 
 # Call the Main function with the sequence and other parameters
-sequence_test = [4, 22, 11, 22]
-Td = Main(sequence_test, transformer_model=transformer_model)
+
+Td = Main(sequence_test, transformer_model_path=transformer_model_path)
 
 # Convert probabilities to percentages
 Td = np.array(Td) * 100
@@ -110,12 +117,13 @@ ax.set_xticklabels(df.index, rotation=45, ha='right')
 ax.legend()
 
 # Save the chart to a PDF
-# Get the directory of the current script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-save_file = 'model_prediction.pdf'
 save_path = os.path.join(script_dir, save_file)
 
 plt.tight_layout()
+
 # Example: Save some data to that file
 with open(save_path, "w") as file:
     file.write("This file is saved in the same folder as model.pth!")
+
+plt.savefig(save_path)  # Save the plot
+plt.close()
